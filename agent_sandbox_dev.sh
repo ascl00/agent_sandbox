@@ -36,6 +36,15 @@ quote_scheme_string() {
   printf '"%s"' "$value"
 }
 
+print_ancestor_metadata_rules() {
+  local path=$1
+  while [[ "$path" != / ]]; do
+    path=$(dirname "$path")
+    [[ "$path" == / ]] && break
+    printf '(allow file-read-metadata (literal %s))\n' "$(quote_scheme_string "$path")"
+  done
+}
+
 append_env_if_set() {
   local name=$1
   local value
@@ -56,6 +65,40 @@ canonical_path() {
   fi
 }
 
+link_config_path() {
+  local path=$1
+  [[ -e "$path" || -L "$path" ]] || return 0
+
+  local source_path rel_path dest_path dest_parent
+  source_path=$(canonical_path "$path")
+
+  case "$source_path" in
+    "$user_home"/*)
+      rel_path=${source_path#"$user_home"/}
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+
+  dest_path="$home_dir/$rel_path"
+  dest_parent=$(dirname "$dest_path")
+  mkdir -p "$dest_parent"
+
+  if [[ -L "$dest_path" ]]; then
+    [[ $(readlink "$dest_path") == "$source_path" ]] && return 0
+    ln -sfn "$source_path" "$dest_path"
+    return 0
+  fi
+
+  if [[ -e "$dest_path" ]]; then
+    printf 'agent-sandbox-dev: not replacing existing sandbox config path: %s\n' "$dest_path" >&2
+    return 0
+  fi
+
+  ln -s "$source_path" "$dest_path"
+}
+
 tool=opencode
 project=.
 config_paths=()
@@ -66,6 +109,7 @@ default_config_candidates=(
   "$HOME/.config/opencode"
   "$HOME/.config/pi"
   "$HOME/.config/gh"
+  "$HOME/.copilot"
 )
 
 while [[ $# -gt 0 ]]; do
@@ -110,6 +154,7 @@ command -v "$tool" >/dev/null 2>&1 || die "cannot find tool on PATH: $tool"
 project_root=$(canonical_path "$project")
 tool_path=$(command -v "$tool")
 tool_path=$(canonical_path "$tool_path")
+user_home=$(canonical_path "$HOME")
 
 sandbox_root="$project_root/.agent-sandbox"
 home_dir="$sandbox_root/home"
@@ -119,6 +164,20 @@ profile=$(mktemp -t agent-sandbox)
 
 mkdir -p "$home_dir" "$cache_dir" "$tmp_dir"
 trap 'rm -f "$profile"' EXIT
+
+all_config_paths=("${default_config_candidates[@]}")
+if [[ ${#config_paths[@]} -gt 0 ]]; then
+  all_config_paths+=("${config_paths[@]}")
+fi
+
+for path in "${all_config_paths[@]}"; do
+  link_config_path "$path"
+done
+
+terminal_paths=(/dev/null /dev/zero /dev/random /dev/urandom /dev/tty)
+if tty_path=$(tty 2>/dev/null); then
+  terminal_paths+=("$tty_path")
+fi
 
 {
   printf '(version 1)\n'
@@ -143,6 +202,9 @@ trap 'rm -f "$profile"' EXIT
   printf ';; Project and project-local sandbox state.\n'
   printf '(allow file-read* (subpath %s))\n' "$(quote_scheme_string "$project_root")"
   printf '(allow file-write* (subpath %s))\n' "$(quote_scheme_string "$project_root")"
+
+  print_ancestor_metadata_rules "$project_root"
+
   printf '(allow file-read* (subpath %s))\n' "$(quote_scheme_string "$home_dir")"
   printf '(allow file-write* (subpath %s))\n' "$(quote_scheme_string "$home_dir")"
   printf '(allow file-read* (subpath %s))\n' "$(quote_scheme_string "$cache_dir")"
@@ -172,19 +234,16 @@ trap 'rm -f "$profile"' EXIT
   for path in /dev/fd /private/dev/fd; do
     [[ -e "$path" ]] && printf '(allow file-read* (subpath %s))\n' "$(quote_scheme_string "$path")"
     [[ -e "$path" ]] && printf '(allow file-write* (subpath %s))\n' "$(quote_scheme_string "$path")"
+    [[ -e "$path" ]] && printf '(allow file-ioctl (subpath %s))\n' "$(quote_scheme_string "$path")"
   done
-  for path in /dev/null /dev/zero /dev/random /dev/urandom /dev/tty; do
+  for path in "${terminal_paths[@]}"; do
     [[ -e "$path" ]] && printf '(allow file-read* (literal %s))\n' "$(quote_scheme_string "$path")"
     [[ -e "$path" ]] && printf '(allow file-write* (literal %s))\n' "$(quote_scheme_string "$path")"
+    [[ -e "$path" ]] && printf '(allow file-ioctl (literal %s))\n' "$(quote_scheme_string "$path")"
   done
   printf '\n'
 
   printf ';; Selected user config, read-only.\n'
-  all_config_paths=("${default_config_candidates[@]}")
-  if [[ ${#config_paths[@]} -gt 0 ]]; then
-    all_config_paths+=("${config_paths[@]}")
-  fi
-
   for path in "${all_config_paths[@]}"; do
     [[ -e "$path" ]] || continue
     real_path=$(canonical_path "$path")
@@ -193,6 +252,7 @@ trap 'rm -f "$profile"' EXIT
     else
       printf '(allow file-read* (literal %s))\n' "$(quote_scheme_string "$real_path")"
     fi
+    print_ancestor_metadata_rules "$real_path"
   done
 } > "$profile"
 
@@ -208,7 +268,7 @@ env_args=(
   "XDG_CACHE_HOME=$cache_dir/xdg"
   "XDG_DATA_HOME=$home_dir/.local/share"
   "XDG_STATE_HOME=$home_dir/.local/state"
-  "GIT_CONFIG_GLOBAL=$HOME/.gitconfig"
+  "GIT_CONFIG_GLOBAL=$home_dir/.gitconfig"
   "npm_config_cache=$cache_dir/npm"
   "PIP_CACHE_DIR=$cache_dir/pip"
   "UV_CACHE_DIR=$cache_dir/uv"
