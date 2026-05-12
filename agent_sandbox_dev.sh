@@ -108,17 +108,13 @@ config_paths=()
 writable_home_paths=(
   "$HOME/Library/Application Support/Code"
   "$HOME/Library/Application Support/Microsoft"
+  "$HOME/.copilot"
+  "$HOME/.config"
+  "$HOME/.local"
 )
 
 default_config_candidates=(
   "$HOME/.gitconfig"
-  "$HOME/.config/git"
-  "$HOME/.config/opencode"
-  "$HOME/.config/pi"
-  "$HOME/.config/gh"
-  "$HOME/.config/github-copilot"
-  "$HOME/.copilot"
-  "$HOME/.local"
 )
 
 while [[ $# -gt 0 ]]; do
