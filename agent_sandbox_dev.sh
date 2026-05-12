@@ -110,6 +110,7 @@ default_config_candidates=(
   "$HOME/.config/pi"
   "$HOME/.config/gh"
   "$HOME/.copilot"
+  "$HOME/.local"
 )
 
 while [[ $# -gt 0 ]]; do
