@@ -92,8 +92,10 @@ link_config_path() {
   fi
 
   if [[ -e "$dest_path" ]]; then
-    printf 'agent-sandbox-dev: not replacing existing sandbox config path: %s\n' "$dest_path" >&2
-    return 0
+    local backup_path
+    backup_path="$dest_path.sandbox-backup.$(date +%Y%m%d%H%M%S)"
+    mv "$dest_path" "$backup_path"
+    printf 'agent-sandbox-dev: moved existing sandbox config path to: %s\n' "$backup_path" >&2
   fi
 
   ln -s "$source_path" "$dest_path"
