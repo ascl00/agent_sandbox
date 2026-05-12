@@ -111,6 +111,7 @@ writable_home_paths=(
   "$HOME/.copilot"
   "$HOME/.config"
   "$HOME/.local"
+  "$HOME/.pi"
 )
 
 default_config_candidates=(
@@ -165,9 +166,9 @@ sandbox_root="$project_root/.agent-sandbox"
 home_dir="$sandbox_root/home"
 cache_dir="$sandbox_root/cache"
 tmp_dir="$sandbox_root/tmp"
-profile=$(mktemp -t agent-sandbox)
 
 mkdir -p "$home_dir" "$cache_dir" "$tmp_dir"
+profile=$(mktemp -p "$tmp_dir" -t agent-sandbox)
 trap 'rm -f "$profile"' EXIT
 
 all_config_paths=("${default_config_candidates[@]}")
