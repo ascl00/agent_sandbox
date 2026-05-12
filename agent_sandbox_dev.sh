@@ -166,10 +166,20 @@ sandbox_root="$project_root/.agent-sandbox"
 home_dir="$sandbox_root/home"
 cache_dir="$sandbox_root/cache"
 tmp_dir="$sandbox_root/tmp"
+darwin_tmp_paths=()
 
 mkdir -p "$home_dir" "$cache_dir" "$tmp_dir"
 profile=$(mktemp -p "$tmp_dir" -t agent-sandbox)
 trap 'rm -f "$profile"' EXIT
+
+if darwin_tmp_raw=$(getconf DARWIN_USER_TEMP_DIR 2>/dev/null); then
+  darwin_tmp_raw=${darwin_tmp_raw%/}
+  if [[ -d "$darwin_tmp_raw" ]]; then
+    darwin_tmp_paths+=("$darwin_tmp_raw")
+    darwin_tmp_real=$(canonical_path "$darwin_tmp_raw")
+    [[ "$darwin_tmp_real" == "$darwin_tmp_raw" ]] || darwin_tmp_paths+=("$darwin_tmp_real")
+  fi
+fi
 
 all_config_paths=("${default_config_candidates[@]}")
 if [[ ${#config_paths[@]} -gt 0 ]]; then
@@ -217,6 +227,15 @@ fi
   printf '(allow file-write* (subpath %s))\n' "$(quote_scheme_string "$cache_dir")"
   printf '(allow file-read* (subpath %s))\n' "$(quote_scheme_string "$tmp_dir")"
   printf '(allow file-write* (subpath %s))\n\n' "$(quote_scheme_string "$tmp_dir")"
+
+  if [[ ${#darwin_tmp_paths[@]} -gt 0 ]]; then
+    printf ';; Some macOS APIs bypass TMPDIR and return DARWIN_USER_TEMP_DIR under /var/folders.\n'
+    for path in "${darwin_tmp_paths[@]}"; do
+      printf '(allow file-read* (subpath %s))\n' "$(quote_scheme_string "$path")"
+      printf '(allow file-write* (subpath %s))\n' "$(quote_scheme_string "$path")"
+    done
+    printf '\n'
+  fi
 
   printf ';; Common system runtime and tool locations, documented here for auditability.\n'
   for path in \
@@ -279,6 +298,9 @@ env_args=(
   "HOME=$home_dir"
   "PATH=/opt/local/bin:/opt/local/sbin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
   "TMPDIR=$tmp_dir"
+  "TMP=$tmp_dir"
+  "TEMP=$tmp_dir"
+  "TEMPDIR=$tmp_dir"
   "XDG_CONFIG_HOME=$home_dir/.config"
   "XDG_CACHE_HOME=$cache_dir/xdg"
   "XDG_DATA_HOME=$home_dir/.local/share"
