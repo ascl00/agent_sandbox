@@ -105,6 +105,10 @@ tool=opencode
 project=.
 config_paths=()
 
+writable_home_paths=(
+  "$HOME/Library/Application Support/Code"
+)
+
 default_config_candidates=(
   "$HOME/.gitconfig"
   "$HOME/.config/git"
@@ -174,7 +178,7 @@ if [[ ${#config_paths[@]} -gt 0 ]]; then
   all_config_paths+=("${config_paths[@]}")
 fi
 
-for path in "${all_config_paths[@]}"; do
+for path in "${all_config_paths[@]}" "${writable_home_paths[@]}"; do
   link_config_path "$path"
 done
 
@@ -256,6 +260,15 @@ fi
     else
       printf '(allow file-read* (literal %s))\n' "$(quote_scheme_string "$real_path")"
     fi
+    print_ancestor_metadata_rules "$real_path"
+  done
+
+  printf '\n;; Selected home paths, writable through sandbox-home symlinks.\n'
+  for path in "${writable_home_paths[@]}"; do
+    [[ -e "$path" ]] || continue
+    real_path=$(canonical_path "$path")
+    printf '(allow file-read* (subpath %s))\n' "$(quote_scheme_string "$real_path")"
+    printf '(allow file-write* (subpath %s))\n' "$(quote_scheme_string "$real_path")"
     print_ancestor_metadata_rules "$real_path"
   done
 } > "$profile"
