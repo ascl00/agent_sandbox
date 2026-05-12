@@ -194,7 +194,7 @@ if [[ ${#config_paths[@]} -gt 0 ]]; then
 fi
 
 safe_ssh_read_paths=("${safe_ssh_read_candidates[@]}")
-for path in "$HOME"/.ssh/*.pub; do
+for path in "$HOME"/.ssh/*.pub "$HOME"/.ssh/*github; do
   [[ -e "$path" ]] && safe_ssh_read_paths+=("$path")
 done
 
