@@ -107,6 +107,7 @@ config_paths=()
 
 writable_home_paths=(
   "$HOME/Library/Application Support/Code"
+  "$HOME/Library/Application Support/Microsoft"
 )
 
 default_config_candidates=(
