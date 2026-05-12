@@ -111,6 +111,7 @@ default_config_candidates=(
   "$HOME/.config/opencode"
   "$HOME/.config/pi"
   "$HOME/.config/gh"
+  "$HOME/.config/github-copilot"
   "$HOME/.copilot"
   "$HOME/.local"
 )
