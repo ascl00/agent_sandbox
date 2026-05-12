@@ -118,6 +118,13 @@ default_config_candidates=(
   "$HOME/.gitconfig"
 )
 
+safe_ssh_read_candidates=(
+  "$HOME/.ssh/config"
+  "$HOME/.ssh/known_hosts"
+  "$HOME/.ssh/known_hosts2"
+  "$HOME/.ssh/known_hosts.old"
+)
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --tool)
@@ -186,7 +193,12 @@ if [[ ${#config_paths[@]} -gt 0 ]]; then
   all_config_paths+=("${config_paths[@]}")
 fi
 
-for path in "${all_config_paths[@]}" "${writable_home_paths[@]}"; do
+safe_ssh_read_paths=("${safe_ssh_read_candidates[@]}")
+for path in "$HOME"/.ssh/*.pub; do
+  [[ -e "$path" ]] && safe_ssh_read_paths+=("$path")
+done
+
+for path in "${all_config_paths[@]}" "${safe_ssh_read_paths[@]}" "${writable_home_paths[@]}"; do
   link_config_path "$path"
 done
 
@@ -277,6 +289,14 @@ fi
     else
       printf '(allow file-read* (literal %s))\n' "$(quote_scheme_string "$real_path")"
     fi
+    print_ancestor_metadata_rules "$real_path"
+  done
+
+  printf '\n;; SSH client metadata, read-only. Private keys remain denied by default.\n'
+  for path in "${safe_ssh_read_paths[@]}"; do
+    [[ -e "$path" ]] || continue
+    real_path=$(canonical_path "$path")
+    printf '(allow file-read* (literal %s))\n' "$(quote_scheme_string "$real_path")"
     print_ancestor_metadata_rules "$real_path"
   done
 
